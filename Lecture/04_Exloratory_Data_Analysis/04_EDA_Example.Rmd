@@ -1,0 +1,337 @@
+---
+title: "Exploratory Data Analysis Example"
+output:
+  html_document: null
+  powerpoint_presentation: null
+  pdf_document: null
+  word_document: default
+subtitle: The New York City (NYC) AirBnB Dataset
+params:
+  datadir: https://raw.githubusercontent.com/VAWi-DataScience/2021/main/Lecture/04_Exloratory_Data_Analysis/data/
+---
+
+```{r Setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE)
+# Import packages
+library(readr)
+library(dplyr)
+library(knitr)
+library(kableExtra)
+library(ggplot2)
+library(car)
+library(onewaytests)
+```
+
+
+
+```{r echo = FALSE, }
+knitr::include_graphics("https://upload.wikimedia.org/wikipedia/commons/thumb/b/bb/NYC_Downtown_and_Brooklyn_Bridge_Panorama_%28Explored%29_%2819610363205%29.jpg/1200px-NYC_Downtown_and_Brooklyn_Bridge_Panorama_%28Explored%29_%2819610363205%29.jpg")
+```
+
+# Task
+The ISDL Property Management LC plans to let some of their accommodations in New York City (NYC) via AirBnB. To find out what accommodations can generate the highest rent, they crawled the AirBnB data of NYC. </br> 
+As a junior data scientist, you have been asked to apply your new knowledge about exploratory data analysis and hypothesis testing to figure out what accommodations have the highest rent. 
+
+```{r Import data, include=FALSE}
+#import data from github
+## Import `col_date` in date format and `room_type` as factor
+NYC_data <- read_csv(file.path(params$datadir, "AB_NYC_2019.csv"), col_types = cols(last_review = col_date(format = "%Y-%m-%d"), room_type = col_factor(levels = c("Private room","Entire home/apt", "Shared room"))), na = "NA")
+
+```
+
+## Data Overview
+First, we look at the general structure of the dataset and the characteristics of the attributes.</br> 
+
+Number of attributes in the dataset: `r ncol(NYC_data)` </br> 
+Number of observations in the dataset: `r nrow(NYC_data)`
+
+##### Attributes
+```{r, echo = FALSE}
+
+description <- data.frame(AttributeNames = names(NYC_data), Datatype = sapply(NYC_data, class),   
+                          Description = 
+                            c("ID" , 
+                              "ID of the apartment", 
+                              "ID of the host", 
+                              "Name of the host", 
+                              "Neighbourhood group where the accommondation is", 
+                              "Neighbourhood where the accommondation is", 
+                              "Latitude of the accommondation", 
+                              "Longitude of the accommondation", 
+                              "Room type of the accommondation (Private room / Entire home/apt/ Shared room)", 
+                              "Price per night", 
+                              "Minimum days for rental", 
+                              "Number of reviews", 
+                              "Date of the last review", 
+                              "Number of reviews per month", 
+                              "Number of listing per host", 
+                              "Number of days available per year"))
+
+as_tibble(description)
+
+```
+
+
+## Data Cleaning
+Before analyzing the data, we need to prepare the data for further processing. It is a good practice to check for missing values or invalid values in the dataset. 
+
+##### Screen for columns with NA values
+```{r}
+colSums(is.na(NYC_data))
+
+## Let's further look at last_review and reviews_per_month which contain NA values. Let's analyze whether both NA values appear simultaneously.
+```
+
+`last_review` and `reviews_per_month` contain NA values. </br>
+Let's analyze whether both NA values appear simultaneously.
+
+```{r}
+NYC_data %>%
+  filter(is.na(reviews_per_month), !is.na(last_review)) %>%
+  count()
+  
+NYC_data %>%
+  filter(!is.na(reviews_per_month), is.na(last_review)) %>%
+  count()
+```
+
+Since `last_review` and `reviews_per_month` are consistently NA at the same time, we do not need to delete any data.
+
+##### Search for empty strings
+```{r}
+# Search for empty strings in the name attribute
+observatonEemptyName <- NYC_data %>%
+  filter(name == "") %>%
+  count()
+## There are 16 observations without a name. This seems strange, as accommodations normally have names, thus we delete this data.
+
+# Delete all observations where the name is empty
+NYC_data <- NYC_data %>%
+  filter(name != "") 
+
+# Search for empty strings in hostname
+observatoinsEmptyHostName <- NYC_data %>%
+  filter(host_name == "") %>%
+  count()
+## There are 21 observations with empty strings. This seems strange, because every host should have a name, thus we delete these observations.
+
+# Delete all observations where the hostname is empty
+NYC_data <- NYC_data %>%
+  filter(host_name != "") 
+
+# Check whether there are accommodations which are listed with 0$
+NYC_data %>%
+  filter(price == 0) %>%
+  count()
+
+## There are 11 observations where the price is $0. This appears suspect, because nobody gives away the accommodation for free, thus we remove the observations.
+observationsPriceNull <- NYC_data <- NYC_data %>%
+  filter(price > 0)
+
+
+#Check for unrealistic high prices
+slice_max(NYC_data, NYC_data$price, n = 10)
+## There are three accommodations with $10,000 per night and three with $9999 per night. This might be reasonable for NYC, but we should have this in mind for further analysis. 
+  
+
+# Check whether there are observations with minimum nights less than 1
+NYC_data %>%
+  filter(minimum_nights < 1) %>%
+  count()
+
+```
+
+
+
+
+## Visualization of the data
+
+##### Let's visualize the distribution of the accommodations among the five neighbourhood groups.
+```{r}
+ggplot(NYC_data, aes(x = neighbourhood_group, fill = neighbourhood_group)) +
+  geom_bar() +
+  scale_fill_brewer(palette = "Set1") +
+  labs(title = "Distribution of accommodations among neighbourhood groups", x = "Neighbourhood group", y= "Number of accommodations") 
+```
+</br> Brooklyn and Manhattan have the most accommodations.
+
+
+#####  Let's visualize the price of the accommodations for each neighbourhood group
+```{r}
+ggplot(NYC_data, aes(y = price, x = neighbourhood_group, fill = neighbourhood_group)) +
+  geom_boxplot() +
+  scale_y_log10() + # We use the log of the price, because the range is too large. Otherwise, the boxplot is hard to read
+  labs(title = "Distribution of price among different neighbourhood groups", x = "Neighbourhood group", y= "log(Price)")
+
+```
+
+</br> We see that the prices are quite different for each neighborhood group. Manhattan seems to be the most expensive.
+
+##### We can visualize the distribution of the prices on a map, by using the longitude and latitude data
+
+##### Display the neighbourhood groups
+```{r}
+
+NYC_data %>%
+ggplot(aes(y = latitude, x = longitude, color = neighbourhood_group)) +
+  geom_point() +
+  labs(title = "Neighbourhood groups in NYC", x = "Longitude", y= "Latitude", color="Neighbourhood groups")
+```
+</br>
+
+##### Display the prices of the accommodations
+
+```{r}
+#For better readability: we set the price above median price to median price
+NYC_data %>% 
+  mutate(price_capped = ifelse(price > median(price),median(price),price)) %>% #Mute the data so that all prices above mean are set to mean price
+  ggplot(aes(x=longitude, y= latitude, color= price_capped )) +
+  geom_point(alpha = 1/10) +  # Add transparency because of large data set
+  scale_colour_gradientn(colors = c("blue", "green", "yellow","red"))+
+  labs(title = "Prices of accommodations in NYC", x = "Longitude", y= "Latitude", color="Price (capped)")
+
+```
+</br> 
+This also shows that Manhattan has the most accommodations with a price above the median (red dots)
+
+## Hypothesis testing (t-test)
+##### The exploratory analysis suggests that Manhattan might be the most neighbourhood group with the highest prices. Let's try to back this claim up with some statistics. 
+
+##### Mean, median and standard deviation of the price for each neighbourhood group
+
+```{r}
+NYC_data %>%
+  group_by(neighbourhood_group) %>%
+  summarize(
+    meanPrice = mean(price), 
+    medianPrice = median(price),
+    sd = sd(price)) %>%
+  arrange(desc(meanPrice))
+
+```
+Manhattan has the highest mean and median price, however, the standard deviation is very high. The numbers indicate that Manhattan might be the neighbourhood group with the highest price. </br>
+We next test whether this happens at random or if there is a statistically significant difference in the prices.
+
+
+##### Let's analyze whether the prices for accomondatons in Manhattan are statistically higher than in the rest of New York City.
+##### Create dataset
+
+```{r}
+#Create dataset for t-test: One with accommodations from Manhattan and one data set with the rest
+manhattan <- NYC_data %>%
+  filter(neighbourhood_group == "Manhattan")
+
+notManhattan <- NYC_data %>%
+  filter(neighbourhood_group != "Manhattan")
+```
+
+##### Preconditions for t-test
+
+```{r}
+## 1. We can assume that the data is normally distributed, because of the large data set.
+## 2. Before we do the t-test, we need to check for homogeneity of variance, because this determines whether to use the t-test or the Welch-test.
+## Create a dummy variable to indicate the group (accommodation in Manhattan / not in Manhattan)
+
+leveneTest_data <- NYC_data %>%
+  mutate(ManhattanYes = ifelse(neighbourhood_group == "Manhattan",1,0))
+
+## Levene-Test for homogeneity of variance across groups
+### H0 for Levene-Test: There is homogeneity of variance for both groups ("both groups have similar variance")
+### H1 for Levene-Test: There is no homogeneity of variance for both groups ("both groups have different variance")
+
+leveneTest(leveneTest_data$price, leveneTest_data$ManhattanYes)
+
+```
+
+We reject H0 because the the Levene-Test shows that there is no variance homogeneity: F(1,48845) = 439.21, p = 2.2e-16. </br>
+Therefore, we use the Welch test (t-test for variance inhomogeneity), instead of the normal t-test.
+
+##### T-test
+H0: The price of accommodations in Manhattan equal to the price of accommodations in the rest of New York City </br>
+
+H1: The price of accommodations in Manhattan greater than the price of accommodations in the rest of New York City
+
+```{r}
+t.test(manhattan$price, notManhattan$price, var.equal = FALSE, conf.level = 0.95, alternative = "greater")
+```
+
+We reject the Null Hypotheses (H0) and accept the alternative hypotheses (H1) </br>
+Interpretation: </br>
+This analysis shows that accommodations in Manhattan are statistically significantly more expensive (mean: 196.9066) compared to accommodations in the rest of New York City (117.6671). </br> 
+t(34553)=34.921, p < 2.2e-16.
+
+
+## Hypothesis testing (ANOVA)
+##### Let's further analyze whether there are differences when also considering the room type of the accommodation. 
+```{r}
+manhattan_NYC_data <- NYC_data%>%
+  filter(neighbourhood_group == "Manhattan")
+
+manhattan_NYC_data %>%
+  ggplot(aes(y = price, x = neighbourhood_group, fill = room_type)) +
+  geom_boxplot() +
+  scale_y_log10() +
+  labs(title = "Distribution of price among different neighbourhood groups in Manhattan", x = "Neighbourhood groups", y= "log(Price)", fill="Room type")
+```
+</br> 
+
+
+```{r}
+manhattan_NYC_data %>%
+  group_by(room_type) %>%
+  summarize(
+    meanPrice = mean(price), 
+    medianPrice = median(price),
+    sd = sd(price)) %>%
+  arrange(desc(meanPrice))
+```
+
+</br>
+It seems like the type "entire home/apt" is the most expensive room type. 
+But it is unclear whether the differences are actually significant.
+</br> Let's try to determine whether there are any statistically significant differences between the prices of the three room-types. 
+We use a one-way ANOVA for this.
+
+##### Preconditions for ANOVA
+
+```{r}
+## 1. We can assume normality of the data, because of the large dataset.
+## 2. Before we do the ANOVA, we need to check for homogeneity of variance, because it determines whether to use the ANOVA or Welch's F-Test.
+
+## Levene-Test for homogeneity of variance across groups
+### H0 for Levene-Test: There is homogeneity of variance for all three groups 
+### H1 for Levene-Test: There is no homogeneity of variance for both groups 
+
+leveneTest(manhattan_NYC_data$price~manhattan_NYC_data$room_type)
+```
+We reject H0 because the the Levene-Test shows that there is no variance homogeneity: F(2,21639) = 125.8, p = 2.2e-16. Therefore, we use the Welch's F-Test.
+
+##### Welch F-Test
+H0: The mean price is equal for all three room types. </br>
+H1: There is a significant difference in the mean price for all three room types.</br>
+
+```{r}
+welch.test(price ~ room_type, data = manhattan_NYC_data)
+```
+
+There was a statistically significant difference between groups as determined by the Welch-F-Test (F(2,1667.792) = 813.5969, p < 0.05). </br> 
+We reject H0 and accept H1.
+</br>
+Interpretation:</br> 
+We can see that the significance value is below 0.05 and, therefore, there is a statistically significant difference in the mean price per night between the different room types. 
+</br>
+This is great to know, but we do not know which of the specific room types differed. We can find this out with a Bonferroni post hoc test.
+
+##### ANOVA Bonferroni Post Hoc test
+
+```{r}
+pairwise.t.test(manhattan_NYC_data$price, manhattan_NYC_data$room_type, p.adjust.method = "bonferroni")
+
+```
+The Bonferroni post hoc test reveals that the price for "entire home/apt" is statistically significantly higher than for private (p = <0.05) and shared room (p = <0.05). </br>
+There is no statistically significant difference between the shared and private (p = 0.11).
+
+##### Conclusion:
+Manhattan has significantly  higher prices than the rest of NYC. Renting an entire home/apartment in Manhattan is significantly more expensive than renting a private room or shared room. However, there is no significant difference in the price for the shared or private room. 
+
+

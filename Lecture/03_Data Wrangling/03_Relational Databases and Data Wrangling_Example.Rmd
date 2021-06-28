@@ -3,7 +3,7 @@ title: "Data Wrangling Example"
 output:
   html_document:
   pdf_document: default
-subtitle: 01 - DataWrangling
+subtitle: The ISDL Property Management (ISDL-PM) Dataset
 params:
   datadir: https://raw.githubusercontent.com/VAWi-DataScience/2021/main/Lecture/03_Data%20Wrangling/data/
            
@@ -16,7 +16,7 @@ library("tidyr")
 ```
 
 # Task
-Given the following relational data schema of the ISDL property management LC (see Figure 1). The foreign keys are indicated with (FK) in the schema. 
+Given the following relational data schema of the ISDL Property Management LC (see Figure 1). The foreign keys are indicated with (FK) in the schema. 
 As a junior data scientist, you have been asked to apply your new knowledge of the R Library dplyr and complete the following tasks. 
 
 ```{r echo = FALSE, fig.cap= "Figure 1:  relational data schema of the ISDL property management LC"}
