@@ -5,7 +5,8 @@ output:
   pdf_document: default
 subtitle: 01 - DataWrangling
 params:
-  datadir: https://raw.githubusercontent.com/VAWi-DataScience/2020/master/Assignment/01/
+  datadir: https://raw.githubusercontent.com/VAWi-DataScience/2021/main/Lecture/03_Data%20Wrangling/data/
+           
 ---
 
 ```{r setup, include=FALSE}
@@ -23,9 +24,9 @@ knitr::include_graphics("ERM.png")
 ```
 
 ## Import data
-In the following, we import the data.
+In the following, we import the data from the GitHub directory (https://github.com/VAWi-DataScience/2021/tree/main/Lecture/03_Data%20Wrangling/data)
 
-```{r initdata, include=FALSE}
+```{r initdata, message=FALSE, warning=FALSE, include=FALSE}
 
 inspector <- read_csv(file.path(params$datadir, "inspector.csv"), 
                       col_names = c("InsID","InsName"))
@@ -61,7 +62,7 @@ staffmember <- read_csv(file.path(params$datadir, "staffmember.csv"),
 ```
 ## Inspect the data
 
-```{r viewdata, echo=TRUE}
+```{r viewdata, echo=FALSE}
 print("Inspector")
 glimpse(inspector)
 print("Inspecting")
@@ -138,7 +139,7 @@ query_4
 
 ```
 
-# query 5
+# Query 5
 Show the ID of the inspector (`InsID`) and the name (`InsName`) for all inspectors having a inspection in 2021. Show the same results only once. 
 
 ```{r query-5}
