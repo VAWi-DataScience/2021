@@ -153,7 +153,7 @@ test_data_frame$string_vector
 # Daten können je nach vorliegendem Format in R geladen werden
 
 # Comma separated files
-iris_data <- read.csv("./data/iris.csv")
+iris_data <- read.csv("https://raw.githubusercontent.com/VAWi-DataScience/2021/main/Lecture/02_Introduction_To_R/iris.csv")
 
 # Semicolon separated files
 # read.csv2()
