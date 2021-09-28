@@ -90,9 +90,7 @@ NYC_data %>%
   filter(is.na(reviews_per_month), !is.na(last_review)) %>%
   count()
   
-NYC_data %>%
-  filter(!is.na(reviews_per_month), is.na(last_review)) %>%
-  count()
+
 ```
 
 Since `last_review` and `reviews_per_month` are consistently NA at the same time, we do not need to delete any data.
@@ -100,9 +98,10 @@ Since `last_review` and `reviews_per_month` are consistently NA at the same time
 ##### Search for empty strings
 ```{r}
 # Search for empty strings in the name attribute
-observatonEemptyName <- NYC_data %>%
+observatonEmptyName <- NYC_data %>%
   filter(name == "") %>%
   count()
+observatonEmptyName
 ## There are 16 observations without a name. This seems strange, as accommodations normally have names, thus we delete this data.
 
 # Delete all observations where the name is empty
